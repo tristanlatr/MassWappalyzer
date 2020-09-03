@@ -171,7 +171,7 @@ def parse_arguments():
     return(parser.parse_args())
     
 def main():
-    print('Wappalyzer Wrapper version {}'.format(VERSION))
+    print('Mass Wappalyzer {}'.format(VERSION))
 
     args = parse_arguments()
 

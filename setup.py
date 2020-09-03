@@ -14,6 +14,7 @@ setup(
     description         =   "Run Wappalyzer asynchronously on a list of URLs and generate a excel file containing all results.",
     url                 =   "https://github.com/tristanlatr/MassWappalyzer",
     maintainer          =   "tristanlatr",
+    version             =   '0.2',
     entry_points        =   {'console_scripts': ['masswappalyzer = masswappalyzer:main'],},
     py_modules          =   ['masswappalyzer'], 
     classifiers         =   ["Programming Language :: Python :: 3"],
