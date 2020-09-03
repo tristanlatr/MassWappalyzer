@@ -161,7 +161,7 @@ class WapalyzerWrapper(object):
             return RuntimeError('Analyzing {} too long, process killed'.format(host))
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='Run Wappalyzer asynchronously on a list of URLs and generate a Excel file containing all results.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description='Run Wappalyzer asynchronously on a list of URLs and generate a Excel file containing all results.', formatter_class=argparse.ArgumentDefaultsHelpFormatter, prog="python3 -m masswappalyzer")
     parser.add_argument('-i', '--inputfile', metavar='Input file', help='Input file, the file must contain 1 host URL per line.', required=True)
     parser.add_argument('-o', '--outputfile', metavar="Output Excel file", help='Output excel file containning all Wappalyzer informations', default='WappalyzerResults.xlsx')
     parser.add_argument('-w', '--wappalyzerpath', metavar='Wappalyzer path', help='Indicate the path to the Wappalyzer executable. Use docker by default.', default='docker run --rm wappalyzer/cli')

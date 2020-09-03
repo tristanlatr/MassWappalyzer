@@ -1,14 +1,18 @@
 # Mass Wappalyzer
 
-Run Wappalyzer asynchronously on a list of URLs and generate a Excel file containing all results.   
+Run [Wappalyzer](https://www.wappalyzer.com/) asynchronously on a list of URLs and generate a Excel file containing all results.   
 
 The Excel file will have one column per technology seen (accros all your URLs), additionnaly, a "Urls" column will aways be present.  
 
 ### Install
 
 Install **Wappalyzer CLI**   
-    - [Docker](https://hub.docker.com/r/wappalyzer/cli/) (used by default)  
-    - [NPM](https://www.npmjs.com/package/wappalyzer)  
+  - [Docker](https://hub.docker.com/r/wappalyzer/cli/) (used by default), pull image with
+  `
+  docker pull wappalyzer/cli
+  `
+
+- [NPM](https://www.npmjs.com/package/wappalyzer), install with `npm i -g wappalyzer`  
 
 Install **Python module**  
 
@@ -17,8 +21,13 @@ Install **Python module**
 
 ### Usage
 
-    python3 -m masswappalyzer -i sample/top-100-most-visited-websites-in-the-US-as-of-2020.txt -o sample/top-100-most-visited-websites-in-the-US-as-of-2020.xlsx -a 20
+    python3 -m masswappalyzer -i sample/top-100-most-visited-websites-in-the-US-as-of-2020.txt -o sample/top-100-most-visited-websites-in-the-US-as-of-2020.xlsx
 
+If you installed `wappalyzer` command from NPM, use
+
+    python3 -m masswappalyzer -w wappalyzer -i urls.txt -o results.xlsx
+
+Output: 
 ```
 Mass Wappalyzer 1.0
 Loading...: 100%|100/100 [08:26<00:00,  5.06s/it]
@@ -30,12 +39,12 @@ Done
 
 ### Excel file
 
-![Excel file](/sample/top-100-most-visited-websites-in-the-US-as-of-2020.png "Excel file")
+![Excel file](https://raw.githubusercontent.com/tristanlatr/MassWappalyzer/master/sample/top-100-most-visited-websites-in-the-US-as-of-2020.png "Excel file")
 
 ### Full help
 
 ```
-usage: masswappalyzer [-h] -i Input file [-o Output Excel file]
+usage: python3 -m masswappalyzer [-h] -i Input file [-o Output Excel file]
                          [-w Wappalyzer path] [-c Wappalyzer arguments]
                          [-a Number] [-v]
 
