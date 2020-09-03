@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-VERSION="0.2"
+VERSION="1.0"
 # Run Wappalyzer asynchronously on a list of URLs and generate a excel file with all Wappalyzer informations
 
 import argparse
@@ -161,79 +161,106 @@ class WapalyzerWrapper(object):
             return RuntimeError('Analyzing {} too long, process killed'.format(host))
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='Run Wappalyzer asynchronously on a list of URLs and generate a excel file with all Wappalyzer informations', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description='Run Wappalyzer asynchronously on a list of URLs and generate a Excel file containing all results.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-i', '--inputfile', metavar='Input file', help='Input file, the file must contain 1 host URL per line.', required=True)
     parser.add_argument('-o', '--outputfile', metavar="Output Excel file", help='Output excel file containning all Wappalyzer informations', default='WappalyzerResults.xlsx')
     parser.add_argument('-w', '--wappalyzerpath', metavar='Wappalyzer path', help='Indicate the path to the Wappalyzer executable. Use docker by default.', default='docker run --rm wappalyzer/cli')
-    parser.add_argument('-c', '--wappalyzerargs', metavar='Wappalyzer arguments', help='Indicate the arguments of the Wappalyzer command as string', default='--pretty --probe --user-agent="Mozilla/5.0"')
+    parser.add_argument('-c', '--wappalyzerargs', metavar='Wappalyzer arguments', help='Indicate the arguments of the Wappalyzer command as string', default='--pretty --probe --user-agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36"')
     parser.add_argument('-a', '--asynch_workers', metavar="Number", help='Number of websites to analyze at the same time', default=5, type=int)
     parser.add_argument('-v', '--verbose', help='Print what Wappalyzer prints', action='store_true')
     return(parser.parse_args())
     
+class MassWappalyzer(object):
+    def __init__(self, urls, outputfile, wappalyzerpath, wappalyzerargs, asynch_workers, verbose, **kwargs):
+        print('Mass Wappalyzer {}'.format(VERSION))
+        
+        self.urls=urls
+        self.outputfile=outputfile
+        self.wappalyzerpath=wappalyzerpath
+        self.asynch_workers=asynch_workers
+        self.verbose=verbose
+
+        self.analyzer = WapalyzerWrapper(
+            wappalyzerpath=wappalyzerpath,
+            verbose=verbose, 
+            wappalyzerargs=wappalyzerargs)
+
+    def run(self):
+
+        try:
+
+            raw_results = perform(
+                self.analyzer.analyze, 
+                self.urls, 
+                asynch=True, 
+                workers=self.asynch_workers, 
+                progress=True)
+
+        except KeyboardInterrupt:
+            
+            print("Interrupting")
+            raw_results = self.analyzer.results
+
+        finally:
+            # Find the template Website keys and init a new class dynamically
+            # Keys: urls, applications meta
+            all_keys=set()
+            for item in raw_results:
+                if isinstance(item, dict):
+                    for app in item['applications']:
+                        all_keys.add(clean(app['name']))
+            
+            print("All applications seen: ")
+            print(all_keys)
+
+            # Website object: namedtuple dynamically created with all possible applications as column fields
+            all_keys.add("Urls")
+            Website = namedtuple('Website', all_keys)
+            Website.__new__.__defaults__ = ("",) * len(Website._fields) # set default values to empty string if not specified
+
+            excel_structure = []
+            # Append each Website as dict
+            for item in raw_results:
+                if isinstance(item, dict):
+                    website_dict=dict()
+                    website_dict.update({'Urls': ', '.join([ url for url in item['urls'] ]) })
+                    for app in item['applications']:
+                        # Litte dict comprehsion in order to correctly and dynamically display 
+                        #   values of application structure in a human readable manner
+                        website_dict.update(
+                            {
+                                clean(app['name']):'\n'.join([
+                                    '{}: {}'.format(
+                                        k.title(), 
+                                        v if not isinstance(v, dict) else 
+                                            ', '.join([ '{} - {}'.format(k1,v1) for k1,v1 in v.items() ])) 
+                                            for k,v in app.items() if k not in ['name', 'icon']
+                                    ])
+                            }
+                        )
+                    # Use custom name tuple with  default values to empty string
+                    website = Website(**website_dict)
+                    excel_structure.append(website._asdict())
+                elif isinstance(item, RuntimeError):
+                    print(str(item))
+
+            print("Creating Excel file {}".format(self.outputfile))
+
+            excel_file = get_xlsx_file(excel_structure)
+            shutil.copyfile(excel_file.name, self.outputfile)
+            os.remove(excel_file.name)
+
+            print('Done')
+
 def main():
-    print('Mass Wappalyzer {}'.format(VERSION))
 
     args = parse_arguments()
 
-    analyzer = WapalyzerWrapper(
-        wappalyzerpath=args.wappalyzerpath,
-        verbose=args.verbose, 
-        wappalyzerargs=args.wappalyzerargs)
-
     urls = file_to_list(args.inputfile)
 
-    try:
-        raw_results = perform(analyzer.analyze, urls, asynch=True, workers=args.asynch_workers, progress=True)
-    except KeyboardInterrupt:
-        print("Interrupting")
-        raw_results = analyzer.results
-    finally:
-        # Find the template Website keys and init a new class dynamically
-        # Keys: urls, applications meta
-        all_keys=set()
-        for item in raw_results:
-            if isinstance(item, dict):
-                for app in item['applications']:
-                    all_keys.add(clean(app['name']))
-        
-        print("All applications seen: ")
-        print(all_keys)
+    mass_w = MassWappalyzer(urls, **vars(args))
 
-        # Website object: namedtuple dynamically created with all possible applications as column fields
-        all_keys.add(["Urls"])
-        Website = namedtuple('Website', all_keys)
-        Website.__new__.__defaults__ = ("",) * len(Website._fields) # set default values to empty string if not specified
-
-        excel_structure = []
-        # Append each Website as dict
-        for item in raw_results:
-            if isinstance(item, dict):
-                website_dict=dict()
-                website_dict.update({'Urls': ', '.join([ url for url in item['urls'] ]) })
-                for app in item['applications']:
-                    website_dict.update(
-                        {
-                            clean(app['name']):'\n'.join([
-                                '{}: {}'.format(
-                                    k.title(), 
-                                    v if not isinstance(v, dict) else 
-                                        ', '.join([ '{} - {}'.format(k1,v1) for k1,v1 in v.items() ])) 
-                                        for k,v in app.items() if k not in ['name', 'icon']
-                                ])
-                        }
-                    )
-                website = Website(**website_dict)
-                excel_structure.append(website._asdict())
-            elif isinstance(item, RuntimeError):
-                print(str(item))
-
-        print("Creating Excel file {}".format(args.outputfile))
-
-        excel_file = get_xlsx_file(excel_structure)
-        shutil.copyfile(excel_file.name, args.outputfile)
-        os.remove(excel_file.name)
-
-        print('Done')
+    mass_w.run()
 
 if __name__=="__main__":
     main()

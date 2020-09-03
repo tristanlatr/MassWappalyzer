@@ -11,10 +11,10 @@ HERE = pathlib.Path(__file__).parent
 README = (HERE / "README.md").read_text()
 setup(
     name                =   'masswappalyzer',
-    description         =   "Run Wappalyzer asynchronously on a list of URLs and generate a excel file containing all results.",
+    description         =   "Run Wappalyzer asynchronously on a list of URLs and generate a Excel file containing all results.",
     url                 =   "https://github.com/tristanlatr/MassWappalyzer",
     maintainer          =   "tristanlatr",
-    version             =   '0.2',
+    version             =   '1.0',
     entry_points        =   {'console_scripts': ['masswappalyzer = masswappalyzer:main'],},
     py_modules          =   ['masswappalyzer'], 
     classifiers         =   ["Programming Language :: Python :: 3"],
