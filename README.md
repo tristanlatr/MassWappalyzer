@@ -7,7 +7,7 @@ The Excel file will have one column per technology seen (accros all your URLs), 
 ### Install
 
 Install **Wappalyzer CLI**   
-    - [Docker](https://hub.docker.com/r/wappalyzer/cli/) (used by default)
+    - [Docker](https://hub.docker.com/r/wappalyzer/cli/) (used by default)  
     - [NPM](https://www.npmjs.com/package/wappalyzer)  
 
 Install **Python module**  
