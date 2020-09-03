@@ -17,7 +17,7 @@ Install **Python module**
 ### Usage
 
 ```
-Wappalyzer Wrapper version 0.2
+Mass Wappalyzer version 0.2
 usage: masswappalyzer [-h] -i Input file [-o Output Excel file]
                              [-w Wappalyzer path] [-c Wappalyzer arguments]
                              [-a Number] [-v]
