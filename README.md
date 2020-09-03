@@ -21,7 +21,7 @@ Install **Python module**
 
 ```
 Mass Wappalyzer 1.0
-Loading...: 100%|█████████████████| 100/100 [08:26<00:00,  5.06s/it]
+Loading...: 100%|100/100 [08:26<00:00,  5.06s/it]
 All applications seen: 
 {'YouTube', 'ApacheTomcat', 'GoogleWebServer', 'Parsely', 'Nodejs', 'Ensighten', ...}
 Creating Excel file sample/top-100-most-visited-websites-in-the-US-as-of-2020.xlsx
