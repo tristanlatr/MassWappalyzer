@@ -2,15 +2,14 @@
 
 Run [Wappalyzer](https://www.wappalyzer.com/) asynchronously on a list of URLs and generate a Excel file containing all results.   
 
-The Excel file will have one column per technology seen (accros all your URLs), additionnaly, a "Urls" column will aways be present.  
+The Excel file will have one column per technology seen (accros all your URLs), additionnaly, a "Urls" column will aways be present. 
+
+CSV and JSON format are also supported.  
 
 ### Install
 
 Install **Wappalyzer CLI**   
-  - [Docker](https://hub.docker.com/r/wappalyzer/cli/) (used by default), pull image with
-  `
-  docker pull wappalyzer/cli
-  `
+  - [Docker](https://hub.docker.com/r/wappalyzer/cli/) (used by default), pull image with `docker pull wappalyzer/cli`
 
 - [NPM](https://www.npmjs.com/package/wappalyzer), install with `npm i -g wappalyzer`  
 
@@ -44,9 +43,9 @@ Done
 ### Full help
 
 ```
-usage: python3 -m masswappalyzer [-h] -i Input file [-o Output Excel file]
-                         [-w Wappalyzer path] [-c Wappalyzer arguments]
-                         [-a Number] [-v]
+usage: python3 -m masswappalyzer [-h] -i Input file [-o Output file]
+                                 [-f Format] [-w Wappalyzer path]
+                                 [-c Wappalyzer arguments] [-a Number] [-v]
 
 Run Wappalyzer asynchronously on a list of URLs and generate a Excel file
 containing all results.
@@ -56,9 +55,12 @@ optional arguments:
   -i Input file, --inputfile Input file
                         Input file, the file must contain 1 host URL per line.
                         (default: None)
-  -o Output Excel file, --outputfile Output Excel file
-                        Output excel file containning all Wappalyzer
-                        informations (default: WappalyzerResults.xlsx)
+  -o Output file, --outputfile Output file
+                        Output file containning all Wappalyzer informations
+                        (default: WappalyzerResults)
+  -f Format, --outputformat Format
+                        Indicate output format. Choices: 'xlsx', 'csv',
+                        'json'. Excel by default. (default: xlsx)
   -w Wappalyzer path, --wappalyzerpath Wappalyzer path
                         Indicate the path to the Wappalyzer executable. Use
                         docker by default. (default: docker run --rm
@@ -73,4 +75,5 @@ optional arguments:
                         Number of websites to analyze at the same time
                         (default: 5)
   -v, --verbose         Print what Wappalyzer prints (default: False)
+
 ```

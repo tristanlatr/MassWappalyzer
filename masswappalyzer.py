@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-VERSION="1.0"
+VERSION="1.1"
 # Run Wappalyzer asynchronously on a list of URLs and generate a excel file with all Wappalyzer informations
 
 import argparse
@@ -16,6 +16,7 @@ import concurrent.futures
 import re
 from collections import namedtuple
 import shutil
+import csv
 
 ##### Static methods 
 
@@ -112,13 +113,10 @@ def file_to_list(path):
     return(the_list)
 
 def clean(s):
-    
    # Remove invalid characters
    s = re.sub('[^0-9a-zA-Z_]', '', s)
-
    # Remove leading characters until we find a letter or underscore
    s = re.sub('^[^a-zA-Z_]+', '', s)
-
    return s
 
 ##### Core
@@ -159,19 +157,9 @@ class WapalyzerWrapper(object):
 
         except subprocess.TimeoutExpired:
             return RuntimeError('Analyzing {} too long, process killed'.format(host))
-
-def parse_arguments():
-    parser = argparse.ArgumentParser(description='Run Wappalyzer asynchronously on a list of URLs and generate a Excel file containing all results.', formatter_class=argparse.ArgumentDefaultsHelpFormatter, prog="python3 -m masswappalyzer")
-    parser.add_argument('-i', '--inputfile', metavar='Input file', help='Input file, the file must contain 1 host URL per line.', required=True)
-    parser.add_argument('-o', '--outputfile', metavar="Output Excel file", help='Output excel file containning all Wappalyzer informations', default='WappalyzerResults.xlsx')
-    parser.add_argument('-w', '--wappalyzerpath', metavar='Wappalyzer path', help='Indicate the path to the Wappalyzer executable. Use docker by default.', default='docker run --rm wappalyzer/cli')
-    parser.add_argument('-c', '--wappalyzerargs', metavar='Wappalyzer arguments', help='Indicate the arguments of the Wappalyzer command as string', default='--pretty --probe --user-agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36"')
-    parser.add_argument('-a', '--asynch_workers', metavar="Number", help='Number of websites to analyze at the same time', default=5, type=int)
-    parser.add_argument('-v', '--verbose', help='Print what Wappalyzer prints', action='store_true')
-    return(parser.parse_args())
     
 class MassWappalyzer(object):
-    def __init__(self, urls, outputfile, wappalyzerpath, wappalyzerargs, asynch_workers, verbose, **kwargs):
+    def __init__(self, urls, outputfile, wappalyzerpath, wappalyzerargs, asynch_workers, verbose, outputformat, **kwargs):
         print('Mass Wappalyzer {}'.format(VERSION))
         
         self.urls=urls
@@ -179,6 +167,7 @@ class MassWappalyzer(object):
         self.wappalyzerpath=wappalyzerpath
         self.asynch_workers=asynch_workers
         self.verbose=verbose
+        self.outputformat=outputformat
 
         self.analyzer = WapalyzerWrapper(
             wappalyzerpath=wappalyzerpath,
@@ -197,11 +186,15 @@ class MassWappalyzer(object):
                 progress=True)
 
         except KeyboardInterrupt:
-            
-            print("Interrupting")
+    
             raw_results = self.analyzer.results
 
         finally:
+
+            if not raw_results:
+                print("No results")
+                exit(1)
+
             # Find the template Website keys and init a new class dynamically
             # Keys: urls, applications meta
             all_keys=set()
@@ -233,24 +226,83 @@ class MassWappalyzer(object):
                                     '{}: {}'.format(
                                         k.title(), 
                                         v if not isinstance(v, dict) else 
-                                            ', '.join([ '{} - {}'.format(k1,v1) for k1,v1 in v.items() ])) 
-                                            for k,v in app.items() if k not in ['name', 'icon']
+                                            ', '.join([ '{} - {}'.format(k1,v1) for (k1,v1) in v.items() ])) 
+                                            for (k,v) in app.items() if k not in ['name', 'icon', 'confidence'] and v
                                     ])
                             }
                         )
                     # Use custom name tuple with  default values to empty string
                     website = Website(**website_dict)
                     excel_structure.append(website._asdict())
+
                 elif isinstance(item, RuntimeError):
                     print(str(item))
 
-            print("Creating Excel file {}".format(self.outputfile))
+            # Automatically setting output file extension if not already set
+            if len(self.outputfile.split('.'))>0:
+                if self.outputfile.split('.')[-1].lower() != self.outputformat:
+                    self.outputfile += "." + self.outputformat
+            else: 
+                self.outputfile += "." + self.outputformat
 
-            excel_file = get_xlsx_file(excel_structure)
-            shutil.copyfile(excel_file.name, self.outputfile)
-            os.remove(excel_file.name)
+            # Writting output file
+            if self.outputformat == 'xlsx':
+                print("Creating Excel file {}".format(self.outputfile))
 
+                excel_file = get_xlsx_file(excel_structure)
+                shutil.copyfile(excel_file.name, self.outputfile)
+                os.remove(excel_file.name)
+
+            elif self.outputformat == 'csv':
+                print("Creating CSV file {}".format(self.outputfile))
+                with open(self.outputfile, 'w') as csvfile:
+                    d = csv.DictWriter(csvfile, fieldnames=list(k.title() for k in excel_structure[0].keys()))
+                    d.writeheader()
+                    for row in excel_structure:
+                        d.writerow({k.title():' '.join(v.splitlines()) for (k,v) in row.items()})
+
+            else:
+                print("Creating JSON file {}".format(self.outputfile))
+                with open(self.outputfile, 'w') as jsonfile:
+                    json.dump(excel_structure, jsonfile, indent=4)
+            
             print('Done')
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description='Run Wappalyzer asynchronously on a list of URLs and generate a Excel file containing all results.', 
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter, 
+        prog="python3 -m masswappalyzer")
+    parser.add_argument(
+        '-i', '--inputfile', 
+        metavar='Input file', 
+        help='Input file, the file must contain 1 host URL per line.', 
+        required=True)
+    parser.add_argument('-o', '--outputfile', 
+        metavar="Output file", 
+        help='Output file containning all Wappalyzer informations', 
+        default='WappalyzerResults')
+    parser.add_argument('-f', '--outputformat', 
+        metavar="Format", 
+        help="Indicate output format. Choices: 'xlsx', 'csv', 'json'. Excel by default.", 
+        default='xlsx', 
+        choices=['xlsx', 'csv', 'json'])
+    parser.add_argument('-w', '--wappalyzerpath', 
+        metavar='Wappalyzer path', 
+        help='Indicate the path to the Wappalyzer executable. Use docker by default.', 
+        default='docker run --rm wappalyzer/cli')
+    parser.add_argument('-c', '--wappalyzerargs', 
+        metavar='Wappalyzer arguments', 
+        help='Indicate the arguments of the Wappalyzer command as string', 
+        default='--pretty --probe --user-agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36"')
+    parser.add_argument('-a', '--asynch_workers', 
+        metavar="Number", 
+        help='Number of websites to analyze at the same time', 
+        default=5, type=int)
+    parser.add_argument('-v', '--verbose', 
+        help='Print what Wappalyzer prints', 
+        action='store_true')
+    return(parser.parse_args())
 
 def main():
 
