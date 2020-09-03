@@ -156,7 +156,7 @@ class WapalyzerWrapper(object):
                 return RuntimeError("Wappalyzer failed:\n{}{}".format(p.stdout.decode(), p.stderr.decode()))
 
         except subprocess.TimeoutExpired:
-            return RuntimeError('Analyzing {} too long, process killed'.format(host))
+            return RuntimeError('Analyzing {} too long, process killed.'.format(host))
     
 class MassWappalyzer(object):
     def __init__(self, urls, outputfile, wappalyzerpath, wappalyzerargs, asynch_workers, verbose, outputformat, **kwargs):
@@ -190,10 +190,6 @@ class MassWappalyzer(object):
             raw_results = self.analyzer.results
 
         finally:
-
-            if not raw_results:
-                print("No results")
-                exit(1)
 
             # Find the template Website keys and init a new class dynamically
             # Keys: urls, applications meta
@@ -237,6 +233,10 @@ class MassWappalyzer(object):
 
                 elif isinstance(item, RuntimeError):
                     print(str(item))
+
+            if not excel_structure:
+                print("No valid results, quitting.")
+                exit(1)
 
             # Automatically setting output file extension if not already set
             if len(self.outputfile.split('.'))>0:
