@@ -169,8 +169,8 @@ def parse_arguments():
     parser.add_argument('-a', '--asynch_workers', metavar="Number", help='Number of websites to analyze at the same time', default=5, type=int)
     parser.add_argument('-v', '--verbose', help='Print what Wappalyzer prints', action='store_true')
     return(parser.parse_args())
-
-if __name__=="__main__":
+    
+def main():
     print('Wappalyzer Wrapper version {}'.format(VERSION))
 
     args = parse_arguments()
@@ -234,3 +234,6 @@ if __name__=="__main__":
         os.remove(excel_file.name)
 
         print('Done')
+
+if __name__=="__main__":
+    main()
