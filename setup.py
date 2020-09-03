@@ -15,6 +15,7 @@ setup(
     url                 =   "https://github.com/tristanlatr/MassWappalyzer",
     maintainer          =   "tristanlatr",
     entry_points        =   {'console_scripts': ['masswappalyzer = masswappalyzer:main'],},
+    py_modules          =   ['masswappalyzer'], 
     classifiers         =   ["Programming Language :: Python :: 3"],
     license             =   'Apache License 2.0',
     long_description    =   README,
