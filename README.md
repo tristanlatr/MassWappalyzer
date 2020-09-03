@@ -18,7 +18,7 @@ Install **Python module**
 
 ```
 Wappalyzer Wrapper version 0.2
-usage: wappalyzer_wrapper.py [-h] -i Input file [-o Output Excel file]
+usage: masswappalyzer [-h] -i Input file [-o Output Excel file]
                              [-w Wappalyzer path] [-c Wappalyzer arguments]
                              [-a Number] [-v]
 
