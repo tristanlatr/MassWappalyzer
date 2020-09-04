@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-VERSION="1.1"
 # Run Wappalyzer asynchronously on a list of URLs and generate a excel file with all Wappalyzer informations
 
 import argparse
@@ -17,19 +16,52 @@ import re
 from collections import namedtuple
 import shutil
 import csv
+import copy
 
 ##### Static methods 
+
+def ensure_keys(dictionnary, keys, default_val=""):
+    row = namedtuple('row', list(set(list(dictionnary.keys()) + keys )) )
+    row.__new__.__defaults__ = (default_val,) * len(row._fields) # set default values to empty string if not specified
+    return row(**dictionnary)._asdict()
 
 def get_valid_filename(s):
     '''Return the given string converted to a string that can be used for a clean filename.  Stolen from Django I think'''
     s = str(s).strip().replace(' ', '_')
     return re.sub(r'(?u)[^-\w.]', '', s)
 
-def get_xlsx_file(items, headers=None):
+def clean(s):
+    # Remove invalid characters
+    s = re.sub('[^0-9a-zA-Z_]', '', s)
+    # Remove leading characters until we find a letter or underscore
+    s = re.sub('^[^a-zA-Z_]+', '', s)
+    if s.isnumeric(): s = '_' + s
+    return s
+
+def _fill_xlsx_worksheet(elements, worksheet, headers=None, index_column=None):
+    if not headers:
+        headers={ key:str(key).title() for key in elements[0].keys() }
+    # Recreate header, insert index_column first if specified
+    if index_column:
+            old_headers = copy.deepcopy(headers)
+            old_headers.pop(index_column)
+            headers=dict()
+            headers[index_column]=index_column.title()
+            headers.update(old_headers)
+    worksheet.write_row(row=0, col=0, data=headers.values())
+    header_keys = [ k for k in headers ]
+    for index, item in enumerate(elements):
+        row = map(lambda field_id: str(item.get(field_id, '')), header_keys)
+        worksheet.write_row(row=index + 1, col=0, data=row)
+    worksheet.autofilter(0, 0, len(elements)-1, len(headers.keys())-1)
+
+def get_xlsx_file(items, index_column, headers=None):
     """
     Argments:  
     - items: list of dict  
-    - headers: dict like {'key':'Key nice title for Excel'}  
+    - headers: dict like {'key':'Key nice title for Excel'}. Leave None to auto generate  
+    - index_column: str. The column name will be placed on the top left side.  
+            Case sensitive.  str.title() will be then applied. Should work since python 3.7 .  
 
     Return excel file as tempfile.NamedTemporaryFile
     Return None if xlsxwriter is not installed
@@ -41,18 +73,31 @@ def get_xlsx_file(items, headers=None):
             return None
         else:
             with xlsxwriter.Workbook(excel_file.name) as workbook:
-                if not headers:
-                    headers={ key:key.title() for key in items[0].keys() }
+                # Ensure all item share the same set of keys
+                all_keys = set()
+                for i in items: [ all_keys.add(clean(str(k))) for k in i ] 
+                
+                elements = [ ensure_keys({ clean(str(k)):v for k,v in element.items() }, all_keys) for element in items ]
+                
                 worksheet = workbook.add_worksheet()
-                worksheet.write_row(row=0, col=0, data=headers.values())
-                header_keys = list(headers.keys())
-                cell_format = workbook.add_format()
-                for index, item in enumerate(items):
-                    row = map(lambda field_id: str(item.get(field_id, '')), header_keys)
-                    worksheet.write_row(row=index + 1, col=0, data=row)
-                    worksheet.set_row(row=index + 1, height=13, cell_format=cell_format)
-                worksheet.autofilter(0, 0, len(items)-1, len(headers.keys())-1)
+                _fill_xlsx_worksheet(elements, worksheet, headers, index_column)
 
+                try: 
+                    import pandas as pd
+
+                except ImportError:
+                    return excel_file
+
+                else:
+                    # Creates DataFrame.  
+                    headers_title = [ e[index_column] for e in elements ]
+                    new_elements = copy.deepcopy(elements)
+                    [ e.pop(index_column) for e in new_elements ] 
+                    df = pd.DataFrame(new_elements, index=headers_title)
+                    transposed_data = df.transpose().reset_index().to_dict('records')
+                    new_worksheet = workbook.add_worksheet()
+                    _fill_xlsx_worksheet(transposed_data, new_worksheet)
+                    
         return excel_file
 
 def perform(func, data, func_args=None, asynch=False,  workers=None , progress=False, desc='Loading...'):
@@ -112,13 +157,6 @@ def file_to_list(path):
                 the_list.append(item)
     return(the_list)
 
-def clean(s):
-   # Remove invalid characters
-   s = re.sub('[^0-9a-zA-Z_]', '', s)
-   # Remove leading characters until we find a letter or underscore
-   s = re.sub('^[^a-zA-Z_]+', '', s)
-   return s
-
 ##### Core
 
 class WapalyzerWrapper(object):
@@ -150,8 +188,9 @@ class WapalyzerWrapper(object):
                 print(p.stdout)
 
             if p.returncode == 0:
-                self.results.append(json.loads(p.stdout))
-                return json.loads(p.stdout)
+                result = json.loads(p.stdout)
+                self.results.append(result)
+                return result
             else:
                 return RuntimeError("Wappalyzer failed:\n{}{}".format(p.stdout.decode(), p.stderr.decode()))
 
@@ -159,8 +198,9 @@ class WapalyzerWrapper(object):
             return RuntimeError('Analyzing {} too long, process killed.'.format(host))
     
 class MassWappalyzer(object):
+
     def __init__(self, urls, outputfile, wappalyzerpath, wappalyzerargs, asynch_workers, verbose, outputformat, **kwargs):
-        print('Mass Wappalyzer {}'.format(VERSION))
+        print('Mass Wappalyzer')
         
         self.urls=urls
         self.outputfile=outputfile
@@ -193,26 +233,24 @@ class MassWappalyzer(object):
 
             # Find the template Website keys and init a new class dynamically
             # Keys: urls, applications meta
-            all_keys=set()
+            all_apps=set()
             for item in raw_results:
                 if isinstance(item, dict):
                     for app in item['applications']:
-                        all_keys.add(clean(app['name']))
+                        all_apps.add(clean(app['name']))
             
             print("All applications seen: ")
-            print(all_keys)
-
-            # Website object: namedtuple dynamically created with all possible applications as column fields
-            all_keys.add("Urls")
-            Website = namedtuple('Website', all_keys)
-            Website.__new__.__defaults__ = ("",) * len(Website._fields) # set default values to empty string if not specified
+            all_apps=sorted(all_apps)
+            print(all_apps)
 
             excel_structure = []
             # Append each Website as dict
             for item in raw_results:
                 if isinstance(item, dict):
                     website_dict=dict()
-                    website_dict.update({'Urls': ', '.join([ url for url in item['urls'] ]) })
+                    website_dict['Urls']='\n'.join([ '{} ({})'.format(url, item['urls'][url]['status']) for url in item['urls'] ])
+                    website_dict['Last_Url']= list(item['urls'].keys())[-1]
+
                     for app in item['applications']:
                         # Litte dict comprehsion in order to correctly and dynamically display 
                         #   values of application structure in a human readable manner
@@ -227,9 +265,8 @@ class MassWappalyzer(object):
                                     ])
                             }
                         )
-                    # Use custom name tuple with  default values to empty string
-                    website = Website(**website_dict)
-                    excel_structure.append(website._asdict())
+                    # Append dict to tructure
+                    excel_structure.append(ensure_keys(website_dict, all_apps))
 
                 elif isinstance(item, RuntimeError):
                     print(str(item))
@@ -249,7 +286,7 @@ class MassWappalyzer(object):
             if self.outputformat == 'xlsx':
                 print("Creating Excel file {}".format(self.outputfile))
 
-                excel_file = get_xlsx_file(excel_structure)
+                excel_file = get_xlsx_file(excel_structure, index_column="Last_Url")
                 shutil.copyfile(excel_file.name, self.outputfile)
                 os.remove(excel_file.name)
 

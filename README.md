@@ -2,16 +2,23 @@
 
 Run [Wappalyzer](https://www.wappalyzer.com/) asynchronously on a list of URLs and generate a Excel file containing all results.   
 
-The Excel file will have one column per technology seen (accros all your URLs), additionnaly, a "Urls" column will aways be present. 
+The generated Excel file will have 2 sheets.  
 
-CSV and JSON format are also supported.  
+First sheet contains one column per technology seen and one row per analyzed website, additionnaly, a "Urls" and "Last_Url" columns will aways be present.   
+
+Second sheet contains one column per analyzed website and one row per seen technology.    
+
+CSV and JSON format are also supported.   
+
+Cells will always contains Wappalyzer informations in a human readable manner.   
 
 ### Install
 
 Install **Wappalyzer CLI**   
+
   - [Docker](https://hub.docker.com/r/wappalyzer/cli/) (used by default), pull image with `docker pull wappalyzer/cli`
 
-- [NPM](https://www.npmjs.com/package/wappalyzer), install with `npm i -g wappalyzer`  
+  - [NPM](https://www.npmjs.com/package/wappalyzer), install with `npm i -g wappalyzer`  
 
 Install **Python module**  
 
