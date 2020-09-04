@@ -22,7 +22,7 @@ Install **Wappalyzer CLI**
 
 Install **Python module**  
 
-    python3 -m pip install git+https://github.com/tristanlatr/MassWappalyzer.git
+    python3 -m pip install git+https://github.com/tristanlatr/MassWappalyzer.git --upgrade
 
 
 ### Usage
