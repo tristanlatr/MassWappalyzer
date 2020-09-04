@@ -1,10 +1,10 @@
 # Mass Wappalyzer
 
-Run [Wappalyzer](https://www.wappalyzer.com/) asynchronously on a list of URLs and generate a Excel file containing all results.   
+Run [Wappalyzer](https://github.com/aliasio/wappalyzer) asynchronously on a list of URLs and generate a Excel file containing all results.   
 
 The generated Excel file will have 2 sheets.  
 
-First sheet contains one column per technology seen and one row per analyzed website, additionnaly, a "Urls" and "Last_Url" columns will aways be present.   
+First sheet contains one column per technology seen and one row per analyzed website, additionnaly, a `"Urls"` and `"Last_Url"` column will aways be present.   
 
 Second sheet contains one column per analyzed website and one row per seen technology.    
 
@@ -14,16 +14,21 @@ Cells will always contains Wappalyzer informations in a human readable manner.
 
 ### Install
 
-Install **Wappalyzer CLI**   
-
-  - [Docker](https://hub.docker.com/r/wappalyzer/cli/) (used by default), pull image with `docker pull wappalyzer/cli`
-
-  - [NPM](https://www.npmjs.com/package/wappalyzer), install with `npm i -g wappalyzer`  
-
 Install **Python module**  
 
     python3 -m pip install git+https://github.com/tristanlatr/MassWappalyzer.git
 
+### Requirements
+
+- **None** If you enable full-python Wappalyzer implementation ([python-Wappalyzer](https://github.com/chorsley/python-Wappalyzer)) with 
+
+      python3 -m masswappalyzer --python -i [...]
+
+- **Wappalyzer CLI** if you want to official Javascript Wappalyzer
+
+  - [Docker](https://hub.docker.com/r/wappalyzer/cli/), **used by default**, pull image with `docker pull wappalyzer/cli`
+
+  - [NPM](https://www.npmjs.com/package/wappalyzer), install with `npm i -g wappalyzer`  
 
 ### Usage
 
@@ -52,7 +57,7 @@ Done
 ```
 usage: python3 -m masswappalyzer [-h] -i Input file [-o Output file]
                                  [-f Format] [-w Wappalyzer path]
-                                 [-c Wappalyzer arguments] [-a Number] [-v]
+                                 [-c Wappalyzer arguments] [-a Number] -p [-v]
 
 Run Wappalyzer asynchronously on a list of URLs and generate a Excel file
 containing all results.
@@ -81,6 +86,10 @@ optional arguments:
   -a Number, --asynch_workers Number
                         Number of websites to analyze at the same time
                         (default: 5)
+  -p, --python          Use full Python Wappalyzer implementation "python-
+                        Wappalyzer". No need to install Wappalyzer CLI. Proram
+                        relies on official tool by default, results may change
+                        if you use python Wappalyzer. (default: False)
   -v, --verbose         Print what Wappalyzer prints (default: False)
 
 ```

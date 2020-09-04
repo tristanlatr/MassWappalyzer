@@ -14,12 +14,13 @@ setup(
     description         =   "Run Wappalyzer asynchronously on a list of URLs and generate a Excel file containing all results.",
     url                 =   "https://github.com/tristanlatr/MassWappalyzer",
     maintainer          =   "tristanlatr",
-    version             =   '1.2',
+    version             =   '1.3',
     entry_points        =   {'console_scripts': ['masswappalyzer = masswappalyzer:main'],},
     py_modules          =   ['masswappalyzer'], 
     classifiers         =   ["Programming Language :: Python :: 3"],
     license             =   'Apache License 2.0',
     long_description    =   README,
     long_description_content_type   =   "text/markdown",
-    install_requires    =   ['XlsxWriter', 'tqdm', 'pandas']
+    install_requires    =   ['XlsxWriter', 'tqdm', 'pandas', 'requests', 'python-Wappalyzer>0.2.2'], 
+    dependency_links    =   ['http://github.com/byt3bl33d3r/python-Wappalyzer/tarball/master#egg=python-Wappalyzer-0.2.3']
 )

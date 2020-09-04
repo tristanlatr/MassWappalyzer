@@ -163,10 +163,17 @@ class WapalyzerWrapper(object):
 
     TIMEOUT=500
 
-    def __init__(self, wappalyzerpath, verbose=False, wappalyzerargs=None):
-        self.wappalyzerpath = shlex.split(wappalyzerpath)
-        self.verbose = verbose
+    def __init__(self, wappalyzerpath=None, verbose=False, wappalyzerargs=None, python=False):
+        
+        self.wappalyzerpath = shlex.split(wappalyzerpath) if wappalyzerpath else []
         self.wappalyzerargs = shlex.split(wappalyzerargs) if wappalyzerargs else []
+        self.verbose = verbose
+
+        self.python = python
+
+        from Wappalyzer import Wappalyzer
+        self.wappalyzer = Wappalyzer.latest()
+        
         self.results = []
 
     def analyze(self, host):    
@@ -177,29 +184,48 @@ class WapalyzerWrapper(object):
         p_url=list(urlparse(host))
         if p_url[0]=="": 
             host='http://'+host
+        result=None
+        if self.python:
+                if self.verbose:
+                    print("Analyzing {} with python-Wappalyzer".format(host))
+                try:
+                    from Wappalyzer import  WebPage
+                    webpage = WebPage.new_from_url(host)
+                    apps = self.wappalyzer.analyze(webpage)
 
-        cmd = self.wappalyzerpath + [host] + self.wappalyzerargs
-        if self.verbose: print("Running: "+str(cmd))
+                    # Make the format like the real Wappalyzer with the minimal infos
+                    result = dict()
+                    result['urls'] = {host:{'status':'OK'}}
+                    result['applications'] = list()
+                    for tech in apps: result['applications'].append({'name':tech, 'i':'Detected'})
 
-        try:
-            p = subprocess.run(args=cmd, timeout=self.TIMEOUT, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                except Exception as e:
+                    return RuntimeError(str(e))
 
-            if self.verbose:
-                print(p.stdout)
+        else:   
+            cmd = self.wappalyzerpath + [host] + self.wappalyzerargs
+            if self.verbose: print("Running: "+str(cmd))
 
-            if p.returncode == 0:
-                result = json.loads(p.stdout)
-                self.results.append(result)
-                return result
-            else:
-                return RuntimeError("Wappalyzer failed:\n{}{}".format(p.stdout.decode(), p.stderr.decode()))
+            try:
+                p = subprocess.run(args=cmd, timeout=self.TIMEOUT, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        except subprocess.TimeoutExpired:
-            return RuntimeError('Analyzing {} too long, process killed.'.format(host))
+                if self.verbose:
+                    print(p.stdout)
+
+                if p.returncode == 0:
+                    result = json.loads(p.stdout)
+                else:
+                    return RuntimeError("Wappalyzer failed:\n{}{}".format(p.stdout.decode(), p.stderr.decode()))
+
+            except subprocess.TimeoutExpired:
+                return RuntimeError('Analyzing {} too long, process killed.'.format(host))
+        
+        self.results.append(result)
+        return result
     
 class MassWappalyzer(object):
 
-    def __init__(self, urls, outputfile, wappalyzerpath, wappalyzerargs, asynch_workers, verbose, outputformat, **kwargs):
+    def __init__(self, urls, outputfile, wappalyzerpath, wappalyzerargs, asynch_workers, verbose, outputformat, python, **kwargs):
         print('Mass Wappalyzer')
         
         self.urls=urls
@@ -212,7 +238,8 @@ class MassWappalyzer(object):
         self.analyzer = WapalyzerWrapper(
             wappalyzerpath=wappalyzerpath,
             verbose=verbose, 
-            wappalyzerargs=wappalyzerargs)
+            wappalyzerargs=wappalyzerargs,
+            python=python)
 
     def run(self):
 
@@ -336,6 +363,11 @@ def parse_arguments():
         metavar="Number", 
         help='Number of websites to analyze at the same time', 
         default=5, type=int)
+    parser.add_argument(
+        '-p', '--python', 
+        action='store_true', 
+        help='Use full Python Wappalyzer implementation "python-Wappalyzer". No need to install Wappalyzer CLI. Proram relies on official tool by default, results may change if you use python Wappalyzer.', 
+        required=True)
     parser.add_argument('-v', '--verbose', 
         help='Print what Wappalyzer prints', 
         action='store_true')
