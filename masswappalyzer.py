@@ -21,7 +21,7 @@ import copy
 ##### Static methods 
 
 def ensure_keys(dictionnary, keys, default_val=""):
-    row = namedtuple('row', list(set(list(dictionnary.keys()) + keys )) )
+    row = namedtuple('row', list(set(list(dictionnary.keys()) + list(keys) )) )
     row.__new__.__defaults__ = (default_val,) * len(row._fields) # set default values to empty string if not specified
     return row(**dictionnary)._asdict()
 
