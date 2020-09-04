@@ -16,7 +16,7 @@ Cells will always contains Wappalyzer informations in a human readable manner.
 
 Install **Python module**  
 
-    python3 -m pip install git+https://github.com/tristanlatr/MassWappalyzer.git
+    python3 -m pip install git+https://github.com/tristanlatr/MassWappalyzer.git --upgrade
 
 ### Requirements
 
@@ -24,7 +24,7 @@ Install **Python module**
 
       python3 -m masswappalyzer --python -i [...]
 
-- **Wappalyzer CLI** if you want to official Javascript Wappalyzer
+- **Wappalyzer CLI** if you want to use the official Javascript Wappalyzer CLI (shows more details but slower)  
 
   - [Docker](https://hub.docker.com/r/wappalyzer/cli/), **used by default**, pull image with `docker pull wappalyzer/cli`
 
