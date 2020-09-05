@@ -20,7 +20,7 @@ Install **Python module**
 
 - **None** if you use the packaged full-python Wappalyzer implementation: [python-Wappalyzer](https://github.com/chorsley/python-Wappalyzer) (faster)  
 
-- **Wappalyzer CLI** if you want to use the official Javascript Wappalyzer CLI (shows more details and )  
+- **Wappalyzer CLI** if you want to use the official Javascript Wappalyzer CLI (shows more details and configurable with `--wappalyzerargs`)  
 
   - [Docker](https://hub.docker.com/r/wappalyzer/cli/), pull image with `docker pull wappalyzer/cli`
 
