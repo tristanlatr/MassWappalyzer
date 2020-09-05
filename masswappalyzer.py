@@ -5,7 +5,6 @@
 import argparse
 import os
 import subprocess
-from datetime import datetime
 import json
 import shlex
 from urllib.parse import urlparse
@@ -89,7 +88,7 @@ def get_xlsx_file(items, index_column, headers=None):
                     return excel_file
 
                 else:
-                    # Creates DataFrame.  
+                    # Creates DataFrame and write the transposed data to Excel file.  
                     headers_title = [ e[index_column] for e in elements ]
                     new_elements = copy.deepcopy(elements)
                     [ e.pop(index_column) for e in new_elements ] 
@@ -159,21 +158,54 @@ def file_to_list(path):
 
 ##### Core
 
-class WapalyzerWrapper(object):
+class WappalyzerWrapper(object):
 
     TIMEOUT=500
 
-    def __init__(self, wappalyzerpath=None, verbose=False, wappalyzerargs=None, python=False):
+    def __init__(self, verbose=False, wappalyzerpath=None, wappalyzerargs=None, python=False):
+        if not wappalyzerpath:
+
+            if shutil.which("wappalyzer"):
+                wappalyzerpath = [ 'wappalyzer' ]
+
+            elif shutil.which("docker"):
+                # Test if docker image is installed
+                o = subprocess.run( args=[ 'docker', 'image', 'ls' ], stdout=subprocess.PIPE )
+                if 'wappalyzer/cli' not in o.stdout.decode() :
+                    self.wappalyzerpath = None
+                else:
+                    self.wappalyzerpath = [ 'docker', 'run', '--rm', 'wappalyzer/cli' ]
+            else:
+                self.wappalyzerpath = None
+        else:
+            self.wappalyzerpath = shlex.split(wappalyzerpath)
+
+        if not self.wappalyzerpath :
+            self.wappalyzerargs = None
+            self.python = True
+            
+        elif python:
+            self.python = True
+
+        else:
+            self.wappalyzerargs = shlex.split(wappalyzerargs) if wappalyzerargs else []
+            self.python = False
         
-        self.wappalyzerpath = shlex.split(wappalyzerpath) if wappalyzerpath else []
-        self.wappalyzerargs = shlex.split(wappalyzerargs) if wappalyzerargs else []
         self.verbose = verbose
 
-        self.python = python
+        if self.python:
+            print("Using python-Wappalyzer")
+            try:
+                from Wappalyzer import Wappalyzer, WebPage
+                self.webpage=WebPage.new_from_url
+                self.wappalyzer = Wappalyzer.latest()
 
-        from Wappalyzer import Wappalyzer
-        self.wappalyzer = Wappalyzer.latest()
-        
+            except ImportError:
+                print("Please install python-Wappalyzer")
+                exit(1)
+        else:
+            print("Using Wappalyzer CLI: {}".format(' '.join(self.wappalyzerpath)))
+
         self.results = []
 
     def analyze(self, host):    
@@ -185,32 +217,42 @@ class WapalyzerWrapper(object):
         if p_url[0]=="": 
             host='http://'+host
         result=None
+
         if self.python:
+
                 if self.verbose:
                     print("Analyzing {} with python-Wappalyzer".format(host))
                 try:
-                    from Wappalyzer import  WebPage
-                    webpage = WebPage.new_from_url(host)
-                    apps = self.wappalyzer.analyze(webpage)
+                    apps = self.wappalyzer.analyze_with_versions_and_categories(self.webpage(host))
 
+                    if self.verbose:
+                        print("{} technologies: {}".format(host, apps))
+                    
                     # Make the format like the real Wappalyzer with the minimal infos
+                    # Works with python-Wappalyzer 0.2.3
                     result = dict()
                     result['urls'] = {host:{'status':'OK'}}
                     result['applications'] = list()
-                    for tech in apps: result['applications'].append({'name':tech, 'i':'Detected'})
+
+                    for tech_name, infos in apps.items(): 
+                        app_dict=dict()
+                        app_dict['name']=tech_name
+                        app_dict.update(infos)
+                        result['applications'].append(app_dict)
 
                 except Exception as e:
                     return RuntimeError(str(e))
 
-        else:   
+        elif self.wappalyzerpath:   
+
             cmd = self.wappalyzerpath + [host] + self.wappalyzerargs
-            if self.verbose: print("Running: "+str(cmd))
+            if self.verbose: print("Analyzing: "+str(cmd))
 
             try:
                 p = subprocess.run(args=cmd, timeout=self.TIMEOUT, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
                 if self.verbose:
-                    print(p.stdout)
+                    print("{} technologies: {}".format(host, p.stdout))
 
                 if p.returncode == 0:
                     result = json.loads(p.stdout)
@@ -219,27 +261,41 @@ class WapalyzerWrapper(object):
 
             except subprocess.TimeoutExpired:
                 return RuntimeError('Analyzing {} too long, process killed.'.format(host))
-        
+        else:
+            return RuntimeError('No Wappalyzer engine')
+
         self.results.append(result)
         return result
     
 class MassWappalyzer(object):
 
-    def __init__(self, urls, outputfile, wappalyzerpath, wappalyzerargs, asynch_workers, verbose, outputformat, python, **kwargs):
+    def __init__(self, 
+        urls, 
+        outputfile,  
+        asynch_workers=5, 
+        verbose=False, 
+        outputformat="xlsx",
+        **kwargs):
+
         print('Mass Wappalyzer')
         
         self.urls=urls
-        self.outputfile=outputfile
-        self.wappalyzerpath=wappalyzerpath
+        # Automatically setting output file extension if not already set
+        if len(outputfile.split('.'))>0:
+            if outputfile.split('.')[-1].lower() != outputformat:
+                self.outputfile = outputfile + "." + outputformat
+            else:
+                self.outputfile = outputfile
+        else: 
+            self.outputfile = outputfile + "." + outputformat
+        self.outputformat=outputformat
         self.asynch_workers=asynch_workers
         self.verbose=verbose
-        self.outputformat=outputformat
+        
 
-        self.analyzer = WapalyzerWrapper(
-            wappalyzerpath=wappalyzerpath,
-            verbose=verbose, 
-            wappalyzerargs=wappalyzerargs,
-            python=python)
+        self.analyzer = WappalyzerWrapper(
+            verbose=verbose,
+            **kwargs)
 
     def run(self):
 
@@ -274,6 +330,7 @@ class MassWappalyzer(object):
             # Append each Website as dict
             for item in raw_results:
                 if isinstance(item, dict):
+
                     website_dict=dict()
                     website_dict['Urls']='\n'.join([ '{} ({})'.format(url, item['urls'][url]['status']) for url in item['urls'] ])
                     website_dict['Last_Url']= list(item['urls'].keys())[-1]
@@ -301,13 +358,6 @@ class MassWappalyzer(object):
             if not excel_structure:
                 print("No valid results, quitting.")
                 exit(1)
-
-            # Automatically setting output file extension if not already set
-            if len(self.outputfile.split('.'))>0:
-                if self.outputfile.split('.')[-1].lower() != self.outputformat:
-                    self.outputfile += "." + self.outputformat
-            else: 
-                self.outputfile += "." + self.outputformat
 
             # Writting output file
             if self.outputformat == 'xlsx':
@@ -344,30 +394,27 @@ def parse_arguments():
         required=True)
     parser.add_argument('-o', '--outputfile', 
         metavar="Output file", 
-        help='Output file containning all Wappalyzer informations', 
-        default='WappalyzerResults')
+        help='Output file containning all Wappalyzer informations. ', 
+        default="MassWappalyzerResults")
     parser.add_argument('-f', '--outputformat', 
         metavar="Format", 
-        help="Indicate output format. Choices: 'xlsx', 'csv', 'json'. Excel by default.", 
+        help="Indicate output format. Choices: 'xlsx', 'csv', 'json'.", 
         default='xlsx', 
         choices=['xlsx', 'csv', 'json'])
     parser.add_argument('-w', '--wappalyzerpath', 
         metavar='Wappalyzer path', 
-        help='Indicate the path to the Wappalyzer executable. Use docker by default.', 
-        default='docker run --rm wappalyzer/cli')
+        help='Indicate the path to the Wappalyzer CLI executable. Auto detect by default. Use "python-Wappalyzer" if Wappalyzer CLI not found. ')
     parser.add_argument('-c', '--wappalyzerargs', 
         metavar='Wappalyzer arguments', 
-        help='Indicate the arguments of the Wappalyzer command as string', 
-        default='--pretty --probe --user-agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36"')
+        help='Indicate the arguments of the Wappalyzer CLI command as string. Not applicable if using "python-Wappalyzer".', 
+        default='--pretty --probe --user-agent="Mozilla/5.0"')
     parser.add_argument('-a', '--asynch_workers', 
         metavar="Number", 
         help='Number of websites to analyze at the same time', 
         default=5, type=int)
-    parser.add_argument(
-        '-p', '--python', 
+    parser.add_argument('-p', '--python', 
         action='store_true', 
-        help='Use full Python Wappalyzer implementation "python-Wappalyzer". No need to install Wappalyzer CLI. Proram relies on official tool by default, results may change if you use python Wappalyzer.', 
-        required=True)
+        help='Use full Python Wappalyzer implementation "python-Wappalyzer" even if Wappalyzer CLI is installed with NPM or docker.')
     parser.add_argument('-v', '--verbose', 
         help='Print what Wappalyzer prints', 
         action='store_true')
@@ -375,11 +422,11 @@ def parse_arguments():
 
 def main():
 
-    args = parse_arguments()
+    args = vars(parse_arguments())
 
-    urls = file_to_list(args.inputfile)
+    urls = file_to_list(args.pop('inputfile'))
 
-    mass_w = MassWappalyzer(urls, **vars(args))
+    mass_w = MassWappalyzer(urls, **args)
 
     mass_w.run()
 
