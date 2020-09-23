@@ -21,6 +21,5 @@ setup(
     license             =   'Apache License 2.0',
     long_description    =   README,
     long_description_content_type   =   "text/markdown",
-    install_requires    =   ['XlsxWriter', 'tqdm', 'pandas', 'requests', 'python-Wappalyzer>0.2.2'], 
-    dependency_links    =   ['http://github.com/bretfourbe/python-Wappalyzer/tarball/master#egg=python-Wappalyzer-0.2.3']
+    install_requires    =   ['XlsxWriter', 'tqdm', 'pandas', 'requests', 'python-Wappalyzer>=0.3.0']  
 )
