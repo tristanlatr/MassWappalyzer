@@ -16,6 +16,7 @@ from collections import namedtuple
 import shutil
 import csv
 import copy
+import requests
 
 ##### Static methods 
 
@@ -198,7 +199,10 @@ class WappalyzerWrapper(object):
             try:
                 from Wappalyzer import Wappalyzer, WebPage
                 self.webpage=WebPage.new_from_url
-                self.wappalyzer = Wappalyzer.latest()
+                lastest_technologies_file = requests.get('https://raw.githubusercontent.com/AliasIO/wappalyzer/master/src/technologies.json')
+                with open('/tmp/lastest_technologies_file.json', 'w') as t_file:
+                    t_file.write(lastest_technologies_file.text)
+                self.wappalyzer = Wappalyzer.latest(technologies_file='/tmp/lastest_technologies_file.json')
 
             except ImportError:
                 print("Please install python-Wappalyzer")
