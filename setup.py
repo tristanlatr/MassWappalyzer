@@ -21,5 +21,5 @@ setup(
     license             =   'Apache License 2.0',
     long_description    =   README,
     long_description_content_type   =   "text/markdown",
-    install_requires    =   ['XlsxWriter', 'tqdm', 'pandas', 'requests', 'python-Wappalyzer>=0.3.0']  
+    install_requires    =   ['XlsxWriter', 'tqdm', 'pandas', 'requests', 'lxml', 'aiohttp', 'python-Wappalyzer>=0.3.0']  
 )
