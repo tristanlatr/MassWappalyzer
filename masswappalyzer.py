@@ -16,7 +16,11 @@ from collections import namedtuple
 import shutil
 import csv
 import copy
-import requests
+import traceback
+
+import pandas as pd
+import xlsxwriter
+import tqdm
 
 ##### Static methods 
 
@@ -67,37 +71,26 @@ def get_xlsx_file(items, index_column, headers=None):
     Return None if xlsxwriter is not installed
     """
     with tempfile.NamedTemporaryFile(delete=False) as excel_file:
-        try: 
-            import xlsxwriter
-        except ImportError:
-            return None
-        else:
-            with xlsxwriter.Workbook(excel_file.name) as workbook:
-                # Ensure all item share the same set of keys
-                all_keys = set()
-                for i in items: [ all_keys.add(clean(str(k))) for k in i ] 
+        
+        with xlsxwriter.Workbook(excel_file.name) as workbook:
+            # Ensure all item share the same set of keys
+            all_keys = set()
+            for i in items: [ all_keys.add(clean(str(k))) for k in i ] 
+            
+            elements = [ ensure_keys({ clean(str(k)):v for k,v in element.items() }, all_keys) for element in items ]
+            
+            worksheet = workbook.add_worksheet()
+            _fill_xlsx_worksheet(elements, worksheet, headers, index_column)
+
+            # Creates DataFrame and write the transposed data to Excel file.  
+            headers_title = [ e[index_column] for e in elements ]
+            new_elements = copy.deepcopy(elements)
+            [ e.pop(index_column) for e in new_elements ] 
+            df = pd.DataFrame(new_elements, index=headers_title)
+            transposed_data = df.transpose().reset_index().to_dict('records')
+            new_worksheet = workbook.add_worksheet()
+            _fill_xlsx_worksheet(transposed_data, new_worksheet)
                 
-                elements = [ ensure_keys({ clean(str(k)):v for k,v in element.items() }, all_keys) for element in items ]
-                
-                worksheet = workbook.add_worksheet()
-                _fill_xlsx_worksheet(elements, worksheet, headers, index_column)
-
-                try: 
-                    import pandas as pd
-
-                except ImportError:
-                    return excel_file
-
-                else:
-                    # Creates DataFrame and write the transposed data to Excel file.  
-                    headers_title = [ e[index_column] for e in elements ]
-                    new_elements = copy.deepcopy(elements)
-                    [ e.pop(index_column) for e in new_elements ] 
-                    df = pd.DataFrame(new_elements, index=headers_title)
-                    transposed_data = df.transpose().reset_index().to_dict('records')
-                    new_worksheet = workbook.add_worksheet()
-                    _fill_xlsx_worksheet(transposed_data, new_worksheet)
-                    
         return excel_file
 
 def perform(func, data, func_args=None, asynch=False,  workers=None , progress=False, desc='Loading...'):
@@ -122,8 +115,6 @@ def perform(func, data, func_args=None, asynch=False,  workers=None , progress=F
         #The data returned by function
         returned=list() 
         elements=data
-        try: import tqdm
-        except ImportError: progress=False
         tqdm_args=dict()
         #The message will appear on loading bar if progress is True
         if progress is True :
@@ -198,11 +189,8 @@ class WappalyzerWrapper(object):
             print("Using python-Wappalyzer")
             try:
                 from Wappalyzer import Wappalyzer, WebPage
-                self.webpage=WebPage.new_from_url
-                lastest_technologies_file = requests.get('https://raw.githubusercontent.com/AliasIO/wappalyzer/master/src/technologies.json')
-                with open('/tmp/lastest_technologies_file.json', 'w') as t_file:
-                    t_file.write(lastest_technologies_file.text)
-                self.wappalyzer = Wappalyzer.latest(technologies_file='/tmp/lastest_technologies_file.json')
+                self.webpage = WebPage.new_from_url
+                self.wappalyzer = Wappalyzer.latest()
 
             except ImportError:
                 print("Please install python-Wappalyzer")
@@ -313,7 +301,11 @@ class MassWappalyzer(object):
                 progress=True)
 
         except KeyboardInterrupt:
-    
+            print("Quitting")
+            raw_results = self.analyzer.results
+
+        except Exception as e:
+            print(f"Error while analyzing: {e}\n{traceback.format_exc()}")
             raw_results = self.analyzer.results
 
         finally:
@@ -323,14 +315,16 @@ class MassWappalyzer(object):
             all_apps=set()
             for item in raw_results:
                 if isinstance(item, dict):
-                    for app in item['applications']:
+                    # Fix for https://github.com/tristanlatr/MassWappalyzer/issues/1
+                    for app in item.get('applications', []) + item.get('technologies', []):
                         all_apps.add(clean(app['name']))
             
-            print("All applications seen: ")
+            print("All technologies seen: ")
             all_apps=sorted(all_apps)
             print(all_apps)
 
             excel_structure = []
+            
             # Append each Website as dict
             for item in raw_results:
                 if isinstance(item, dict):
@@ -338,10 +332,11 @@ class MassWappalyzer(object):
                     website_dict=dict()
                     website_dict['Urls']='\n'.join([ '{} ({})'.format(url, item['urls'][url]['status']) for url in item['urls'] ])
                     website_dict['Last_Url']= list(item['urls'].keys())[-1]
-
-                    for app in item['applications']:
-                        # Litte dict comprehsion in order to correctly and dynamically display 
-                        #   values of application structure in a human readable manner
+                    
+                    # Fix for https://github.com/tristanlatr/MassWappalyzer/issues/1
+                    for app in item.get('applications', []) + item.get('technologies', []):
+                        # Correctly and dynamically display 
+                        # values of application structure in a human readable manner
                         website_dict.update(
                             {
                                 clean(app['name']):'\n'.join([
@@ -353,7 +348,7 @@ class MassWappalyzer(object):
                                     ])
                             }
                         )
-                    # Append dict to tructure
+                    # Append dict to structure
                     excel_structure.append(ensure_keys(website_dict, all_apps))
 
                 elif isinstance(item, RuntimeError):
@@ -418,7 +413,8 @@ def parse_arguments():
         default=5, type=int)
     parser.add_argument('-p', '--python', 
         action='store_true', 
-        help='Use full Python Wappalyzer implementation "python-Wappalyzer" even if Wappalyzer CLI is installed with NPM or docker.')
+        help='Use full Python Wappalyzer implementation "python-Wappalyzer" even if Wappalyzer CLI is installed with NPM or docker.',
+        required=False)
     parser.add_argument('-v', '--verbose', 
         help='Print what Wappalyzer prints', 
         action='store_true')

@@ -14,7 +14,7 @@ CSV and JSON format are also supported.
 
 Install **Python module**  
 
-    python3 -m pip install git+https://github.com/tristanlatr/MassWappalyzer.git --upgrade
+    python3 -m pip install -U git+https://github.com/tristanlatr/MassWappalyzer.git
 
 ### Requirements
 
