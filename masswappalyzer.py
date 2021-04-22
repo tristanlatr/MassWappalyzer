@@ -155,20 +155,20 @@ class WappalyzerWrapper(object):
     TIMEOUT=500
 
     def __init__(self, verbose=False, wappalyzerpath=None, wappalyzerargs=None, python=False):
+        
+        self.wappalyzerpath = None
+        
         if not wappalyzerpath:
 
             if shutil.which("wappalyzer"):
-                wappalyzerpath = [ 'wappalyzer' ]
+                self.wappalyzerpath = [ 'wappalyzer' ]
 
             elif shutil.which("docker"):
                 # Test if docker image is installed
                 o = subprocess.run( args=[ 'docker', 'image', 'ls' ], stdout=subprocess.PIPE )
-                if 'wappalyzer/cli' not in o.stdout.decode() :
-                    self.wappalyzerpath = None
-                else:
+                if 'wappalyzer/cli' in o.stdout.decode() :
                     self.wappalyzerpath = [ 'docker', 'run', '--rm', 'wappalyzer/cli' ]
-            else:
-                self.wappalyzerpath = None
+
         else:
             self.wappalyzerpath = shlex.split(wappalyzerpath)
 
