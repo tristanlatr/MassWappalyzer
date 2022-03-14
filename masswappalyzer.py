@@ -223,7 +223,8 @@ class JsWappalyzer(IWappalyzer):
         if p.returncode == 0:
             result = json.loads(p.stdout)
         else:
-            raise RuntimeError(f"wappalyzer/cli failed: {p.stdout}\n{p.stderr}")
+            print(f"wappalyzer/cli failed: {p.stdout}\n{p.stderr}")
+            return []
         
         techs = []
         for r in result['technologies']:
