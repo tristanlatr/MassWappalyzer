@@ -45,7 +45,7 @@ Done
 
 ### Excel file
 
-![Excel file](https://raw.githubusercontent.com/tristanlatr/MassWappalyzer/master/sample/top-100-most-visited-websites-in-the-US-as-of-2020.png "Excel file")
+![Excel file](https://raw.githubusercontent.com/tristanlatr/MassWappalyzer/master/sample/top-20-websites-2020.png "Excel file")
 
 ### Full help
 
