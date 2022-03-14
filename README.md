@@ -4,7 +4,7 @@ Run [Wappalyzer](https://github.com/aliasio/wappalyzer) asynchronously on a list
 
 The generated Excel file will have 2 sheets.  
 
-First sheet contains one column per technology seen and one row per analyzed website, additionnaly, a `"Urls"` and `"Last_Url"` column will aways be present.   
+First sheet contains one column per technology seen and one row per analyzed website, additionnaly, a `"Url"`  column will aways be present.   
 
 Second sheet contains one column per analyzed website and one row per seen technology.    
 
@@ -18,27 +18,28 @@ Install **Python module**
 
 ### Requirements
 
-- **None** if you use the packaged full-python Wappalyzer implementation: [python-Wappalyzer](https://github.com/chorsley/python-Wappalyzer) (faster)  
-
 - **Wappalyzer CLI** if you want to use the official Javascript Wappalyzer CLI (shows more details and configurable with `--wappalyzerargs`)  
 
   - [Docker](https://hub.docker.com/r/wappalyzer/cli/), pull image with `docker pull wappalyzer/cli`
 
   - [NPM](https://www.npmjs.com/package/wappalyzer), install with `npm i -g wappalyzer`  
 
+- **None** if you use the full-python Wappalyzer implementation: [python-Wappalyzer](https://github.com/chorsley/python-Wappalyzer)
+
 *MassWappalyzer should detect if Wappalyzer CLI is installed and use appropriate implementation*
 
 ### Usage
 
-    python3 -m masswappalyzer -i sample/top-100-most-visited-websites-in-the-US-as-of-2020.txt -o sample/top-100-most-visited-websites-in-the-US-as-of-2020.xlsx
+    python3 -m masswappalyzer -i sample/top-20-websites-2020.txt -o sample/top-20-websites-2020.xlsx
 
 Output: 
 ```
-Mass Wappalyzer 1.0
-Loading...: 100%|100/100 [08:26<00:00,  5.06s/it]
-All applications seen: 
-{'YouTube', 'ApacheTomcat', 'GoogleWebServer', 'Parsely', 'Nodejs', 'Ensighten', ...}
-Creating Excel file sample/top-100-most-visited-websites-in-the-US-as-of-2020.xlsx
+Mass Wappalyzer
+Using wappalyzer/cli: docker run --rm wappalyzer/cli
+Analyzing...: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 20/20 [00:46<00:00,  2.31s/it]
+All technologies seen: 
+['AWSCertificateManager', 'Akamai', 'AkamaiBotManager', 'AmazonCloudfront', 'AmazonWebServices', 'Apache', 'AppleSignin', 'Babel', 'Bootstrap', 'BugSnag', 'CartFunctionality', 'DigiCert', 'DoubleClickforPublishersDFP', 'Envoy', 'Express', 'Facebook', 'FacebookSignin', 'Fastly', 'GoogleAnalytics', 'GoogleFontAPI', 'GoogleSignin', 'GoogleTagManager', 'GoogleWorkspace', 'Hammerjs', 'Hoganjs', 'Lodash', 'MediaWiki', 'Microsoft365', 'MobX', 'Nextjs', 'Nginx', 'Nodejs', 'OneTrust', 'PHP', 'Polyfill', 'Polymer', 'Prebid', 'Python', 'React', 'Reddit', 'RequireJS', 'Sentry', 'Sizmek', 'Stripe', 'Underscorejs', 'Varnish', 'YouTube', 'Zipkin', 'comScore', 'jQuery', 'reCAPTCHA', 'webpack']
+Creating Excel file sample/top-20-websites-2020.xlsx
 Done
 ```
 
@@ -83,5 +84,4 @@ optional arguments:
   -p, --python          Use full Python Wappalyzer implementation "python-
                         Wappalyzer" even if Wappalyzer CLI is installed with
                         NPM or docker. (default: False)
-  -v, --verbose         Print what Wappalyzer prints (default: False)
 ```

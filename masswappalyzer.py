@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 
-# Run Wappalyzer asynchronously on a list of URLs and generate a excel file with all Wappalyzer informations
+# Run Wappalyzer asynchronously on a list of URLs and generate an output file (Excel, CSV, or JSON) containing all results.
 
 import argparse
 import os
 import subprocess
 import json
 import shlex
+from typing import List, Optional
 from urllib.parse import urlparse
 import tempfile
 import functools
 import concurrent.futures
 import re
-from collections import namedtuple
 import shutil
 import csv
 import copy
@@ -24,17 +24,17 @@ import tqdm
 
 ##### Static methods 
 
-def ensure_keys(dictionnary, keys, default_val=""):
-    row = namedtuple('row', list(set(list(dictionnary.keys()) + list(keys) )) )
-    row.__new__.__defaults__ = (default_val,) * len(row._fields) # set default values to empty string if not specified
-    return row(**dictionnary)._asdict()
+def ensure_keys(dictionnary:dict, keys:list, default="") -> dict:
+    for k in keys:
+        dictionnary.setdefault(k, default)
+    return dictionnary
 
-def get_valid_filename(s):
+def get_valid_filename(s:str) -> str:
     '''Return the given string converted to a string that can be used for a clean filename.  Stolen from Django I think'''
     s = str(s).strip().replace(' ', '_')
     return re.sub(r'(?u)[^-\w.]', '', s)
 
-def clean(s):
+def clean(s:str) -> str:
     # Remove invalid characters
     s = re.sub('[^0-9a-zA-Z_]', '', s)
     # Remove leading characters until we find a letter or underscore
@@ -93,14 +93,14 @@ def get_xlsx_file(items, index_column, headers=None):
                 
         return excel_file
 
-def perform(func, data, func_args=None, asynch=False,  workers=None , progress=False, desc='Loading...'):
+def async_do(func, data, func_args=None, asynch=False,  workers=None , progress=False, desc='Loading...'):
         """
         Wrapper arround executable and the data list object.
         Will execute the callable on each object of the list.
         Parameters:  
         
-        - `func`: callable stateless function. func is going to be called like `func(item, **func_args)` on all items in data.
-        - `data`: if stays None, will perform the action on all rows, else it will perfom the action on the data list.
+        - `func`: Callable function. func is going to be called like `func(item, **func_args)` on all items in data.
+        - `data`: Call func on each element if the list.
         - `func_args`: dict that will be passed by default to func in all calls.
         - `asynch`: execute the task asynchronously
         - `workers`: mandatory if asynch is true.
@@ -148,116 +148,112 @@ def file_to_list(path):
                 the_list.append(item)
     return(the_list)
 
+def ensure_scheme(url:str) -> str:
+    # Strip URL string
+    url=url.strip()
+    # Format URL with scheme indication if not already present
+    p_url=list(urlparse(url))
+    if p_url[0]=="": 
+        url='http://'+url
+    return url
+
+
 ##### Core
 
-class WappalyzerWrapper(object):
+class Technology:
+    """
+    A detected technology.
+    """
+    def __init__(self, url:str, name:str, version:Optional[str]=None) -> None:
+        self.url = url
+        self.name = name
+        self.version: Optional[str] = version
 
-    TIMEOUT=500
+class IWappalyzer:
+    def analyze(self, host) -> List[Technology]:
+        ...
 
-    def __init__(self, verbose=False, wappalyzerpath=None, wappalyzerargs=None, python=False):
+class PythonWappalyzer(IWappalyzer):
+    
+    def __init__(self) -> None:
+        try:
+            import Wappalyzer
+        except ImportError:
+            print("Please install python-Wappalyzer.")
+            exit(1)
+
+        self.Wappalyzer = Wappalyzer
+        self._wappalyzer = self.Wappalyzer.Wappalyzer.latest(update=True)
+    
+    def analyze(self, host:str) -> List[Technology]:
+
+        results = self._wappalyzer.analyze_with_versions_and_categories(
+            self.Wappalyzer.WebPage.new_from_url(ensure_scheme(host)))
         
+        techs = []
+        for tech_name, info in results.items():
+            tech = Technology(host, name=tech_name)
+            if info['versions']:
+                tech.version = info['versions'][0]
+            techs.append(tech)
+        return techs
+            
+class JsWappalyzer(IWappalyzer):
+    def __init__(self, path:Optional[str]=None, args:Optional[str]=None, timeout:int=1000) -> None:
         self.wappalyzerpath = None
-        
-        if not wappalyzerpath:
-
+        if not path:
             if shutil.which("wappalyzer"):
                 self.wappalyzerpath = [ 'wappalyzer' ]
-
             elif shutil.which("docker"):
                 # Test if docker image is installed
                 o = subprocess.run( args=[ 'docker', 'image', 'ls' ], stdout=subprocess.PIPE )
                 if 'wappalyzer/cli' in o.stdout.decode() :
                     self.wappalyzerpath = [ 'docker', 'run', '--rm', 'wappalyzer/cli' ]
-
+            if self.wappalyzerpath is None:
+                raise RuntimeError("Can't find wappalyzer/cli in your system.")
         else:
-            self.wappalyzerpath = shlex.split(wappalyzerpath)
+            self.wappalyzerpath = shlex.split(path)
+        self.wappalyzerargs = shlex.split(args) if args else []
+        self.timeout = timeout
 
-        if not self.wappalyzerpath :
-            self.wappalyzerargs = None
-            self.python = True
-            
-        elif python:
-            self.python = True
-
-        else:
-            self.wappalyzerargs = shlex.split(wappalyzerargs) if wappalyzerargs else []
-            self.python = False
+    def analyze(self, host:str) -> List[Technology]:
+        cmd = self.wappalyzerpath + [ensure_scheme(host)] + self.wappalyzerargs
+        p = subprocess.run(args=cmd, timeout=self.timeout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         
-        self.verbose = verbose
+        if p.returncode == 0:
+            result = json.loads(p.stdout)
+        else:
+            raise RuntimeError(f"wappalyzer/cli failed: {p.stdout}\n{p.stderr}")
+        
+        techs = []
+        for r in result['technologies']:
+            t = Technology(host, name=r['name'], version=r['version'] or None)
+            techs.append(t)
+        return techs
 
-        if self.python:
+class WappalyzerWrapper(object):
+
+    def __init__(self, wappalyzerpath=None, wappalyzerargs=None, python=False):
+        self._analyze = None
+        
+        if not python:
+            try:
+                wap = JsWappalyzer(path=wappalyzerpath, args=wappalyzerargs)
+                self._analyze = wap.analyze
+                print("Using wappalyzer/cli: {}".format(' '.join(wap.wappalyzerpath)))
+            except RuntimeError:
+                pass
+        if not self._analyze:
             print("Using python-Wappalyzer")
-            try:
-                from Wappalyzer import Wappalyzer, WebPage
-                self.webpage = WebPage.new_from_url
-                self.wappalyzer = Wappalyzer.latest()
+            self._analyze = PythonWappalyzer().analyze
+            
+        
+        self.results: List[List[Technology]] = []
 
-            except ImportError:
-                print("Please install python-Wappalyzer")
-                exit(1)
-        else:
-            print("Using Wappalyzer CLI: {}".format(' '.join(self.wappalyzerpath)))
-
-        self.results = []
-
-    def analyze(self, host):    
-
-        # Strip URL string
-        host=host.strip()
-        # Format URL with scheme indication if not already present
-        p_url=list(urlparse(host))
-        if p_url[0]=="": 
-            host='http://'+host
-        result=None
-
-        if self.python:
-
-                if self.verbose:
-                    print("Analyzing {} with python-Wappalyzer".format(host))
-                try:
-                    apps = self.wappalyzer.analyze_with_versions_and_categories(self.webpage(host))
-
-                    if self.verbose:
-                        print("{} technologies: {}".format(host, apps))
-                    
-                    # Make the format like the real Wappalyzer with the minimal infos
-                    # Works with python-Wappalyzer 0.2.3
-                    result = dict()
-                    result['urls'] = {host:{'status':'OK'}}
-                    result['applications'] = list()
-
-                    for tech_name, infos in apps.items(): 
-                        app_dict=dict()
-                        app_dict['name']=tech_name
-                        app_dict.update(infos)
-                        result['applications'].append(app_dict)
-
-                except Exception as e:
-                    return RuntimeError(str(e))
-
-        elif self.wappalyzerpath:   
-
-            cmd = self.wappalyzerpath + [host] + self.wappalyzerargs
-            if self.verbose: print("Analyzing: "+str(cmd))
-
-            try:
-                p = subprocess.run(args=cmd, timeout=self.TIMEOUT, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-                if self.verbose:
-                    print("{} technologies: {}".format(host, p.stdout))
-
-                if p.returncode == 0:
-                    result = json.loads(p.stdout)
-                else:
-                    return RuntimeError("Wappalyzer failed:\n{}{}".format(p.stdout.decode(), p.stderr.decode()))
-
-            except subprocess.TimeoutExpired:
-                return RuntimeError('Analyzing {} too long, process killed.'.format(host))
-        else:
-            return RuntimeError('No Wappalyzer engine')
-
-        self.results.append(result)
-        return result
+    def analyze(self, host) -> List[Technology]:    
+        techs = self._analyze(host)
+        self.results.append(techs)
+        return techs
     
 class MassWappalyzer(object):
 
@@ -265,7 +261,6 @@ class MassWappalyzer(object):
         urls, 
         outputfile,  
         asynch_workers=5, 
-        verbose=False, 
         outputformat="xlsx",
         **kwargs):
 
@@ -280,28 +275,27 @@ class MassWappalyzer(object):
                 self.outputfile = outputfile
         else: 
             self.outputfile = outputfile + "." + outputformat
+        
         self.outputformat=outputformat
         self.asynch_workers=asynch_workers
-        self.verbose=verbose
-        
 
         self.analyzer = WappalyzerWrapper(
-            verbose=verbose,
             **kwargs)
 
     def run(self):
 
         try:
 
-            raw_results = perform(
+            raw_results = async_do(
                 self.analyzer.analyze, 
                 self.urls, 
                 asynch=True, 
                 workers=self.asynch_workers, 
-                progress=True)
+                progress=True,
+                desc="Analyzing...")
 
         except KeyboardInterrupt:
-            print("Quitting")
+            print("Quitting...")
             raw_results = self.analyzer.results
 
         except Exception as e:
@@ -312,47 +306,29 @@ class MassWappalyzer(object):
 
             # Find the template Website keys and init a new class dynamically
             # Keys: urls, applications meta
-            all_apps=set()
-            for item in raw_results:
-                if isinstance(item, dict):
-                    # Fix for https://github.com/tristanlatr/MassWappalyzer/issues/1
-                    for app in item.get('applications', []) + item.get('technologies', []):
-                        all_apps.add(clean(app['name']))
+            all_apps = set()
+            for items in raw_results:
+                for item in items:
+                    all_apps.add(clean(item.name))
             
             print("All technologies seen: ")
-            all_apps=sorted(all_apps)
+            all_apps = sorted(all_apps)
             print(all_apps)
 
             excel_structure = []
             
             # Append each Website as dict
-            for item in raw_results:
-                if isinstance(item, dict):
-
-                    website_dict=dict()
-                    website_dict['Urls']='\n'.join([ '{} ({})'.format(url, item['urls'][url]['status']) for url in item['urls'] ])
-                    website_dict['Last_Url']= list(item['urls'].keys())[-1]
-                    
-                    # Fix for https://github.com/tristanlatr/MassWappalyzer/issues/1
-                    for app in item.get('applications', []) + item.get('technologies', []):
-                        # Correctly and dynamically display 
-                        # values of application structure in a human readable manner
-                        website_dict.update(
-                            {
-                                clean(app['name']):'\n'.join([
-                                    '{}: {}'.format(
-                                        k.title(), 
-                                        v if not isinstance(v, dict) else 
-                                            ', '.join([ '{} - {}'.format(k1,v1) for (k1,v1) in v.items() ])) 
-                                            for (k,v) in app.items() if k not in ['name', 'icon', 'confidence'] and v
-                                    ])
-                            }
-                        )
+            for items in raw_results:
+                if not items:
+                    continue
+                website_dict = {'Url': items[0].url}
+                
+                for item in items:
+                    # Display values of application structure in a human readable manner
+                    website_dict.update( {clean(item.name): f'Detected{(", version "+item.version) if item.version else ""}'} )
                     # Append dict to structure
-                    excel_structure.append(ensure_keys(website_dict, all_apps))
-
-                elif isinstance(item, RuntimeError):
-                    print(str(item))
+                
+                excel_structure.append(ensure_keys(website_dict, all_apps))
 
             if not excel_structure:
                 print("No valid results, quitting.")
@@ -362,7 +338,7 @@ class MassWappalyzer(object):
             if self.outputformat == 'xlsx':
                 print("Creating Excel file {}".format(self.outputfile))
 
-                excel_file = get_xlsx_file(excel_structure, index_column="Last_Url")
+                excel_file = get_xlsx_file(excel_structure, index_column="Url")
                 shutil.copyfile(excel_file.name, self.outputfile)
                 os.remove(excel_file.name)
 
@@ -383,7 +359,7 @@ class MassWappalyzer(object):
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description='Run Wappalyzer asynchronously on a list of URLs and generate a Excel file containing all results.', 
+        description='Run Wappalyzer asynchronously on a list of URLs and generate an output file (Excel, CSV, or JSON) containing all results.', 
         formatter_class=argparse.ArgumentDefaultsHelpFormatter, 
         prog="python3 -m masswappalyzer")
     parser.add_argument(
@@ -415,9 +391,6 @@ def parse_arguments():
         action='store_true', 
         help='Use full Python Wappalyzer implementation "python-Wappalyzer" even if Wappalyzer CLI is installed with NPM or docker.',
         required=False)
-    parser.add_argument('-v', '--verbose', 
-        help='Print what Wappalyzer prints', 
-        action='store_true')
     return(parser.parse_args())
 
 def main():
@@ -429,6 +402,8 @@ def main():
     mass_w = MassWappalyzer(urls, **args)
 
     mass_w.run()
+
+    exit(0)
 
 if __name__=="__main__":
     main()
